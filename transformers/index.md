@@ -116,3 +116,31 @@ For each self-attention head, the authors used $$d_k = d_v = \frac{d_{\text{mode
 
 Each head can learn something different, for example, it may be about learning grammar, tense, conjugation, etc. For instance, one head can focus on subject-verb interaction, whereas another finds nearby adjectives. It also helps the model expand the focus to different positions. Obviously we don’t handcraft these relations into the model, and they are fully learned from the data. If you are familiar with computer vision models you might see the resemblance to filters in convolutional neural networks, where one filter can be responsible for detecting faces and another one finds wheels of cars in images.
 
+
+
+# Positional Encoding
+
+Word order and positions play a crucial role in most of the NLP tasks. By taking one word at a time, recurrent neural networks essentially incorporate word order. In transformer architecture, to gain speed and parallelism, recurrent neural networks are replaced by multi-head attention layers. The multi-head attention layer is effectively a weighted sum and does not take into account token position. Thus it becomes necessary to explicitly pass the information about the word order to the model layer as one way of capturing it. There are several ways to achieve this. We can use a learnable pattern, especially when the pretraining dataset is sufficiently large. This works exactly the same way as the token embeddings, but using the position index instead of the token ID as input. The final output embedding is simply the sum of the input embeddings and positional embedding. While learnable position embeddings are easy to implement and widely used, there are some alternatives.
+
+
+<ol>
+<li>Absolute positional representations: Transformer models can use static patterns consisting of modulated sine and cosine signals to encode the positions of the tokens. This works especially well when there are not large volumes of data available. If the length of the sentence is given by $l$ and the embedding dimension/depth is given by $d$, positional encoding $P$ is a 2-D matrix of the same dimension, i.e., $P \in \mathbb{R}^{l \times d}$. Every position can be represented with equations in terms of $i$ (along $l$) and $j$ (along $d$) dimensions as:
+
+$$
+\begin{align}
+P_{i,2j} &= \sin\left(\frac{i}{10000^{2j/d}}\right) \\
+P_{i,2j+1} &= \cos\left(\frac{i}{10000^{2j/d}}\right) 
+\end{align}
+$$
+
+for $i = 0, \ldots, l-1$ and $j = 0, \ldots, \left\lfloor \frac{d-1}{2} \right\rfloor$. We use the sin function when $j$ is even and the cos function when $j$ is odd. The function definition above indicates that the frequencies are decreasing along the vector dimension and form a geometric progression from $2\pi$ to $10000 \cdot 2\pi$ on the wavelengths. 
+The two matrices, i.e., the word embeddings $W$ and the positional encoding $P$, are added to generate the input representation $X = W + P \in \mathbb{R}^{l \times d}$.
+</li>
+<br>
+<li>Relative positional representations: Relative positional representations encode the relative positions between tokens. Models such as DeBERTa use such representations.
+</li>
+</ol>
+
+
+
+
