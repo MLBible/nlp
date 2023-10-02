@@ -54,29 +54,143 @@ The concept of self-attention is based on three vector representations:
 2. Key
 3. Value
 
-Instead of directly finding the dot product between $$x_i$$ and $$x_j$$, we project each token embedding into three vectors called _query_, _key_, and _value_.
+Instead of directly finding the dot product between $$x_i$$ and $$x_j$$, we project each token embedding into three vectors called _query_, _key_, and _value_. The query, key, and value vectors are obtained by projecting the input vector, $x_i$, at time $i$ on the learnable weight matrices $W^{Q} \in \mathbb{R}^{d_{\text{model}} \times d_k}, \quad W^{K} \in \mathbb{R}^{d_{\text{model}} \times d_k}, \quad W^{V} \in \mathbb{R}^{d_{\text{model}} \times d_v}$ to get $q_i$, $k_i$, and $v_i$, respectively. These weight matrices $W^{Q}$, $W^{K}$, and $W^{V}$ are randomly initialized, and the weights are jointly learned from the training process. In the original transormers paper, the authors kept $d_k = d_v = 64$; however, we can choose them to be of different dimensions. 
 
-Consider sentence 1 again for example. Let's focus on finding the embedding for the token _it_. Assume that the dimension of all the tokens is 512 i.e. we represent each token through a dense vector of length 512. All these embeddings are randomly initialised before training and are learned during training the model.
+Consider sentence 1 again for example. Let's focus on finding the embedding for the token _it_. Assume that the dimension of all the tokens is $d_{\text{model}}=512$ i.e. we represent each token through a dense vector of length $512$. All these embeddings are randomly initialised before training and are learned during training the model.
 
 Instead of finding the dot product between _it_ and all other tokens in the sentence and using them as the weights, we do the following:
 
-- Step 1: Define a query matrix $$Q$$ of dimension $$512 \times 64$$ and multiply the embedding vector of _it_ with this matrix to project the embedding of _it_ into a $$64$$-dimensional space. Let us call this new vector as _query_.
-
-- Step 2: Define a key matrix $$K$$ of dimension $$512 \times 64$$ and multiply all the token embeddings (including the token _it_) with this matrix. All the tokens are now projected into another $$64$$-dimensional space. Let us call these vectors as _keys_.
-
-- Step 3: Define a value matrix $$V$$ of dimension $$512 \times 64$$ and multiply all the token embeddings (including the token _it_) with this matrix. All the tokens are now projected into another $$64$$-dimensional space. Let us call these vectors $v_1, \ldots, v_n$ as _values_.
-
-- Step 4: Determine how much the query and key vectors relate to each other using a similarity function (scaled dot-product attention). Our attention mechanism with equal query and key vectors will assign a very large score to identical words in the context, and in particular to the current word itself (and hence the name _self-attention_). The outputs from this step are called the attention scores, and for a sequence with $$n$$ input tokens there is a corresponding $$n \times n$$ matrix of attention scores.
-
-- Step 5: Multiply the attention scores by a scaling factor to normalize their variance and then normalized with a softmax to ensure all the column values sum to 1. This is done in order to make it possible to build gradients that are more stable. The resulting $$n \times n$$ matrix now contains all the attention weights, $$w_{ji}$$.
-
-- Step 6: Update the token embeddings. Once the attention weights are computed, we multiply them by the value vector $v_1, \ldots, v_n$ to obtain an updated representation for embedding of the token _it_ $x_i'$:
+<ul>
+<li>Step 1: Project embedding vector of <i>it</i> on $W^{Q} \in \mathbb{R}^{512 \times 64}$ into a $64$-dimensional space. Let us call this new vector as <i>query</i> $\overrightarrow{q_i}$.</li>
+<br>
+<li>Step 2: Project all the token embeddings (including the token <i>it</i>) on $W^{K} \in \mathbb{R}^{512 \times 64}$ into another $64$-dimensional space. Let us call these vectors as <i>keys</i> $\overrightarrow{k_0}, \overrightarrow{k_1}, \ldots, \overrightarrow{k_n}$.</li>
+<br>
+<li>Step 3: Project all the token embeddings (including the token <i>it</i>) on $W^{V} \in \mathbb{R}^{512 \times 64}$ into another $64$-dimensional space. Let us call these vectors as <i>values</i> $\overrightarrow{v_0}, \overrightarrow{v_1}, \ldots, \overrightarrow{v_n}$.</li>
+<br>
+<li>Step 4: Determine how much the query relates to all the key vectors $\overrightarrow{k_j}$ using a similarity function. We use the scaled dot-product attention given by: 
 
 $$
-x_i' = \sum_j w_{ji} v_j
+s_{i, j} = \frac{1}{\sqrt{d_k}} \overrightarrow{q_i} \cdot \overrightarrow{k_j}
 $$
 
-Similarly, we can find the embeddings of all other tokens by casting them into their query vectors using the same query matrix $$Q$$, finding their attention weights using the key vectors and using these weights to compute the weighted average of the value vectors.
+Our attention mechanism with equal query and key vectors will assign a very large score to identical words in the context, and in particular to the current word itself (and hence the name <i>self-attention</i>). The outputs from this step are called the attention scores, and for a sequence with $n$ input tokens there is a corresponding $n \times n$ matrix of attention scores.</li>
+<br>
+<li>Step 5: Multiply the attention scores by a scaling factor to normalize their variance and then normalized with a softmax to ensure all the column values sum to 1. This is done in order to make it possible to build gradients that are more stable. The resulting $n \times n$ matrix now contains all the attention weights, $w_{ji}$.</li>
+<br>
+<li>Step 6: Update the token embedding of the word <i>it</i>. Once the attention weights are computed, we multiply them by the value vector $\overrightarrow{v_0}, \overrightarrow{v_1}, \ldots, \overrightarrow{v_n}$ to obtain an updated representation for embedding of the token <i>it</i> $x_i'$:
+
+$$
+x_i' = \sum_j s_{i, j} \overrightarrow{v_j}
+$$
+</li>
+</ul>
+Similarly, we can find the embeddings of all other tokens by casting them into their query vectors. For this purpose, we pack the queries, keys and values into matrices $Q, K$ and $V$ as below:
+
+
+$$
+Q = \begin{array}{c}
+\begin{pmatrix}
+\overrightarrow{q_0} \\
+\overrightarrow{q_1} \\
+\vdots \\
+\overrightarrow{q_m}
+\end{pmatrix}
+\end{array}; \
+
+K^T = \begin{array}{c}
+\begin{pmatrix}
+\overrightarrow{k_0} & \overrightarrow{k_1} & \ldots & \overrightarrow{k_n}
+\end{pmatrix}
+\end{array}; \
+
+V = \begin{array}{c}
+\begin{pmatrix}
+\overrightarrow{v_0} \\
+\overrightarrow{v_1} \\
+\vdots \\
+\overrightarrow{v_n}
+\end{pmatrix}
+\end{array}
+$$
+
+Here, $Q \in \mathbb{R}^{m \times d_k}$, $K \in \mathbb{R}^{n \times d_k}$ and $V \in \mathbb{R}^{n \times d_v}$. Note that for the algebra to work out, the number of keys and values $n$ must be equal, but the number of queries $m$ can vary. Likewise, the dimensionality of the keys and queries must match, but that of the values can vary.
+
+To find out the attention scores for each query with all the keys as in step 4, we can do:
+
+$$
+\frac{1}{\sqrt{d_k}}QK^T = \frac{1}{\sqrt{d_k}} \begin{array}{c}
+\begin{pmatrix}
+\overrightarrow{q}_0 \cdot \overrightarrow{k}_0 & \overrightarrow{q}_0 \cdot \overrightarrow{k}_1 & \ldots & \overrightarrow{q}_0 \cdot \overrightarrow{k}_n \\
+\overrightarrow{q}_1 \cdot \overrightarrow{k}_0 & \overrightarrow{q}_1 \cdot \overrightarrow{k}_1 & \ldots & \overrightarrow{q}_1 \cdot \overrightarrow{k}_n \\
+\vdots & \vdots & \ddots & \vdots \\
+\overrightarrow{q}_m \cdot \overrightarrow{k}_0 & \overrightarrow{q}_m \cdot \overrightarrow{k}_1 & \ldots & \overrightarrow{q}_m \cdot \overrightarrow{k}_n \\
+\end{pmatrix}
+\end{array}
+$$
+
+To find the attention weights for each query with all the keys as in step 5, we can do:
+
+$$
+\text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) =
+\begin{array}{c}
+\begin{pmatrix}
+
+\text{softmax}\left(\frac{1}{\sqrt{d_k}} \langle \overrightarrow{q}_0 \cdot \overrightarrow{k}_0, \overrightarrow{q}_0 \cdot \overrightarrow{k}_1, \ldots, \overrightarrow{q}_0 \cdot \overrightarrow{k}_n \rangle \right) \\
+
+\text{softmax}\left(\frac{1}{\sqrt{d_k}} \langle \overrightarrow{q}_1 \cdot \overrightarrow{k}_0, \overrightarrow{q}_1 \cdot \overrightarrow{k}_1, \ldots, \overrightarrow{q}_1 \cdot \overrightarrow{k}_n \rangle \right) \\
+\vdots \\
+\text{softmax}\left(\frac{1}{\sqrt{d_k}} \langle \overrightarrow{q}_m \cdot \overrightarrow{k}_0, \overrightarrow{q}_m \cdot \overrightarrow{k}_1, \ldots, \overrightarrow{q}_m \cdot \overrightarrow{k}_n \rangle \right) \\
+\end{pmatrix}
+\end{array} = 
+
+\begin{array}{c}
+\begin{pmatrix}
+s_{0,0} & s_{0,1} & \ldots & s_{0,n} \\
+s_{1,0} & s_{1,1} & \ldots & s_{1,n} \\
+\vdots & \vdots & \ddots & \vdots \\
+s_{m,0} & s_{m,1} & \ldots & s_{m,n} \\
+\end{pmatrix}
+\end{array}
+$$
+
+where for each row $i$, as a result of the softmax operation,
+$$
+\sum_{j=0}^{n} s_{i,j} = 1
+$$
+
+The last step is to multiply this matrix by $V$:
+
+$$
+\text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right) V =
+
+\begin{array}{c}
+\begin{pmatrix}
+s_{0,0} & s_{0,1} & \ldots & s_{0,n} \\
+s_{1,0} & s_{1,1} & \ldots & s_{1,n} \\
+\vdots & \vdots & \ddots & \vdots \\
+s_{m,0} & s_{m,1} & \ldots & s_{m,n} \\
+\end{pmatrix}
+\end{array}
+
+\begin{array}{c}
+\begin{pmatrix}
+\overrightarrow{v_0} \\
+\overrightarrow{v_1} \\
+\vdots \\
+\overrightarrow{v_n}
+\end{pmatrix}
+\end{array} =
+
+\begin{array}{c}
+\begin{pmatrix}
+\sum_{i=0}^{n} s_{0,i} \overrightarrow{v}_i \\
+\sum_{i=0}^{n} s_{1,i} \overrightarrow{v}_i \\
+\vdots \\
+\sum_{i=0}^{n} s_{m,i} \overrightarrow{v}_i \\
+\end{pmatrix}
+\end{array}
+$$
+
 
 Instead of a vector computation for each token $i$, the input matrix $X \in \mathbb{R}^{l \times d}$, where $l$ is the maximum length of the sentence and $d$ is the dimension of the inputs, combines with each of the query, key, and value matrices as a single computation given by:
 
@@ -102,7 +216,7 @@ $$
 where
 
 $$
-\text{head}_i = \text{Attention}(QW_{i}^{Q}, KW_{i}^{K}, VW_{i}^{V})
+\text{head}_i = \text{attention}(QW_{i}^{Q}, KW_{i}^{K}, VW_{i}^{V})
 $$
 
 The projections are parameter matrices:
@@ -143,4 +257,9 @@ The two matrices, i.e., the word embeddings $W$ and the positional encoding $P$,
 
 
 
+
+
+
+
+# References
 
